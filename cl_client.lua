@@ -1,0 +1,2 @@
+--@client
+print("Client side...")
