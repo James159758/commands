@@ -1,2 +1,0 @@
---@client
-print("Client side...")
