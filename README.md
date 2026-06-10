@@ -9,12 +9,13 @@ Trigger powerful server-side actions directly from the in-game chat using `!!` p
 
 | Command | Arguments | Description |
 |---|---|---|
-| `!!god` | — | Toggle god mode (immune to all damage) |
+| `!!god` | `<name>` or `<skip` | Toggle god mode (immune to all damage) |
 | `!!bring` | `<name>` | Teleport a player to you |
 | `!!tp` | `<name>` | Teleport yourself to a player |
 | `!!kill` | `<name>` | Kill a player (you appear as attacker) |
 | `!!hkill` | `<name>` | Kill a player via a random third-party attacker |
 | `!!wkill` | `<name>` | Kill a player via world damage |
+| `!!mute` | `<name>`  | Remove all player's entities and strip their weapons |
 
 > **Note:** Only the chip owner can execute commands.
 
