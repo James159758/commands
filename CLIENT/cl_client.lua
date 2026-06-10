@@ -64,7 +64,7 @@ function Client:init()
         local cmd = self.commands[cmdName]
         if not cmd then return end
         
-        rest = message:replace(cmdName .. " ", "")
+        local rest = message:sub(#cmdName + 2)
         cmd.execute(rest)
         
         return false
