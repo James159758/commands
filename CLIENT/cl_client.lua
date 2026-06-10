@@ -1,6 +1,7 @@
 --@client
 local rawPrint = print
 print = function(args)
+    args = tostring(args)
     rawPrint("[COMMANDS client] " .. args)
 end
 
@@ -31,7 +32,17 @@ function Client:register(name, options)
 end
 
 function Client:init()
-    self:register("!!god", {execute = function() sendData({flag = "god"}) end})
+    self:register("!!god", {execute = function(args)
+        local target = parseTarget(args) 
+        if not target then 
+            target = owner() 
+        end
+        sendData({flag = "god", target = target}) 
+    end})
+    self:register("!!mute", {execute = function(args)
+        local target = parseTarget(args) if not target then return end
+        sendData({flag = "mute", target = target})
+    end})
     self:register("!!bring", {execute = function(args)
         local target = parseTarget(args) if not target then return end
         sendData({flag = "bring", ply = target})
@@ -59,11 +70,10 @@ function Client:init()
         if ply ~= owner() then return end
 
         local cmdName = message:match("^(!![A-Za-z]+)")
-
         if not cmdName then return end
         local cmd = self.commands[cmdName]
         if not cmd then return end
-        
+
         local rest = message:sub(#cmdName + 2)
         cmd.execute(rest)
         
