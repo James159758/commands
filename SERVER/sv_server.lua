@@ -30,7 +30,12 @@ function Server:init()
     end)
     self:register("bring", function(data) data.ply:setPos(owner():getPos() + Vector(0, 50, 0)) end)
     self:register("tp", function(data) owner():setPos(data.ply:getPos() + Vector(0, 50, 0)) end)
-    self:register("kill", function(data) data.target:applyDamage(math.huge, data.attacker, chip()) end)
+    self:register("kill", function(data) 
+        data.target:applyDamage(math.huge, data.attacker, chip()) 
+        if data.target:isAlive() then 
+            data.target:kill()
+        end
+    end)
     self:register("mute", function(data)
         local index = data.target:getUserID()
         if self.config.mute[index] ~= nil then
@@ -45,7 +50,7 @@ function Server:init()
 
         for _, entity in ipairs(entities) do
             if (not entity:isValid() and not entity:isPlayer()) then continue end
-            if entity:getClass() == "starfall_processor" then continue end
+            //if entity:getClass() == "starfall_processor" then continue end
             entity:remove()
         end
 
@@ -70,7 +75,7 @@ function Server:init()
     hook.add("OnEntityCreated", "[COMMANDS server hook] OnEntityCreated", function(entity)
         if not entity:isValid() then return end
         local ownerEntity = entity:getOwner()
-        if ownerEntity == nil then return end
+        if ownerEntity == nil or !ownerEntity:isValid() then return end
         local index = ownerEntity:getUserID()
         if self.config.mute[index] ~= nil then entity:remove() end
     end)
@@ -83,7 +88,29 @@ function Server:init()
         local index = ply:getUserID()
         if self.config.mute[index] ~= nil then ply:kill() end
     end)
+    hook.add("PlayerSpawn", "[COMMANDS server hook] PlayerSpawn", function(ply)
+        local index = ply:getUserID()
+        if self.config.mute[index] then
+            timer.simple(0, function()
+            local allWeapons = ply:getWeapons()
+            for _, wep in ipairs(allWeapons) do
+                wep:remove()
 
+            end
+            end)
+        end
+
+    end)
+    hook.add("tick", "", function()
+        for plyid, _ in pairs(self.config.mute) do
+            local ply = player(plyid)
+            local allWeapons = ply:getWeapons()
+            for _, wep in ipairs(allWeapons) do
+                wep:remove()
+            end
+        end
+    end)
+    --we can remove all wpeaons by getting list of weapons ply:getweapons()
 
 end
 
