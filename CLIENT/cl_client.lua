@@ -1,8 +1,15 @@
 --@client
 local rawPrint = print
-print = function(args)
-    args = tostring(args)
-    rawPrint("[COMMANDS client] " .. args)
+print = function(...)
+    local argsTable = {}
+    local numArgs = select("#", ...)
+    for i = 1, numArgs do
+        local val = select(i, ...)
+        argsTable[i] = tostring(val)
+    end
+    local fullString = table.concat(argsTable, " ")
+
+    rawPrint("[COMMANDS client] " .. fullString)
 end
 
 print("initialized")

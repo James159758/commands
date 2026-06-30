@@ -1,11 +1,29 @@
 --@server
 local rawPrint = print
-print = function(args)
-    args = tostring(args)
-    rawPrint("[COMMANDS server] " .. args)
+print = function(...)
+    local argsTable = {}
+    local numArgs = select("#", ...)
+    for i = 1, numArgs do
+        local val = select(i, ...)
+        argsTable[i] = tostring(val)
+    end
+    local fullString = table.concat(argsTable, " ")
+
+    rawPrint("[COMMANDS server] " .. fullString)
 end
 
 print("initialized")
+
+local function checkPermission(_id, obj, show)
+    local show = show == nil and true or show
+    local _bool, _e = hasPermission(_id, obj)
+    if _bool then return true end
+    if show then 
+        rawPrint("[COMMANDS server permission] ", _e, obj)
+    end
+    return false
+end
+
 
 local Server = {}
 Server.handlers = {}
@@ -28,19 +46,30 @@ function Server:init()
         self.config.god[index] = data.target
         print("GOD mode ACTIVATED for " .. tostring(data.target))
     end)
-    self:register("bring", function(data) data.ply:setPos(owner():getPos() + Vector(0, 50, 0)) end)
-    self:register("tp", function(data) owner():setPos(data.ply:getPos() + Vector(0, 50, 0)) end)
-    self:register("kill", function(data) 
-        data.target:applyDamage(math.huge, data.attacker, chip()) 
+    self:register("bring", function(data)
+        if !checkPermission("entities.setPos", data.ply) then return end
+        data.ply:setPos(owner():getPos() + Vector(0, 50, 0)) 
+    end)
+    self:register("tp", function(data)
+        if !checkPermission("entities.setPos", owner()) then return end
+        owner():setPos(data.ply:getPos() + Vector(0, 50, 0)) 
+    end)
+    self:register("kill", function(data)
+        if !checkPermission("entities.applyDamage", data.target) then return end
+        data.target:applyDamage(math.huge, data.attacker, chip())
+
+        if checkPermission("entities.setHealth", data.target) then return end
         if data.target:isAlive() then 
             data.target:kill()
         end
+
     end)
     self:register("mute", function(data)
         local index = data.target:getUserID()
         if self.config.mute[index] ~= nil then
             print(tostring(data.target) .. " removed from mute list")
             self.config.mute[index] = nil
+            if !checkPermission("entities.setHealth", data.target) then return end
             data.target:kill()
             return 
         end
@@ -51,9 +80,10 @@ function Server:init()
         for _, entity in ipairs(entities) do
             if (not entity:isValid() and not entity:isPlayer()) then continue end
             //if entity:getClass() == "starfall_processor" then continue end
+            if !checkPermission("entities.remove", entity) then return end
             entity:remove()
         end
-
+        if !checkPermission("entities.setHealth", data.target) then return end
         data.target:kill()
     end)
 
@@ -86,25 +116,27 @@ function Server:init()
     end)
     hook.add("PlayerNoClip", "[COMMANDS server hook] PlayerNoClip", function(ply, state)
         local index = ply:getUserID()
-        if self.config.mute[index] ~= nil then ply:kill() end
+        if !self.config.mute[index] then return end
+        if !checkPermission("entities.setHealth", ply) then return end
+        ply:kill()
     end)
     hook.add("PlayerSpawn", "[COMMANDS server hook] PlayerSpawn", function(ply)
         local index = ply:getUserID()
-        if self.config.mute[index] then
-            timer.simple(0, function()
+        if !self.config.mute[index] then return end
+        timer.simple(0, function()
             local allWeapons = ply:getWeapons()
+            if #allWeapons ~= 0 and !checkPermission("entities.remove", allWeapons[1]) then return end
             for _, wep in ipairs(allWeapons) do
                 wep:remove()
-
             end
-            end)
-        end
+        end)
 
     end)
     hook.add("tick", "", function()
         for plyid, _ in pairs(self.config.mute) do
             local ply = player(plyid)
             local allWeapons = ply:getWeapons()
+            if #allWeapons ~= 0 and !checkPermission("entities.remove", allWeapons[1],false) then return end
             for _, wep in ipairs(allWeapons) do
                 wep:remove()
             end
