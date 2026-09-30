@@ -1,132 +1,56 @@
-# ⚡ SF Commands
+# SF Commands
 
-A lightweight admin command system for [StarfallEx](https://github.com/thegrb93/StarfallEx) — Garry's Mod's Lua scripting addon.  
-Trigger powerful server-side actions directly from the in-game chat using `!!` prefixed commands.
+A chat-command chip for [StarfallEx](https://github.com/thegrb93/StarfallEx) in Garry's Mod. Only the chip owner can run commands.
 
----
+## Commands
 
-## 📋 Commands
-
-| Command | Arguments | Description |
+| Command | Usage | Description |
 |---|---|---|
-| `!!god` | `<name>` or `<skip` | Toggle god mode (immune to all damage) |
-| `!!bring` | `<name>` | Teleport a player to you |
-| `!!tp` | `<name>` | Teleport yourself to a player |
-| `!!kill` | `<name>` | Kill a player (you appear as attacker) |
-| `!!hkill` | `<name>` | Kill a player via a random third-party attacker |
-| `!!wkill` | `<name>` | Kill a player via world damage |
-| `!!mute` | `<name>`  | Remove all player's entities and strip their weapons |
+| `!!help` | `!!help [command]` | List commands or show one command's usage. |
+| `!!god` | `!!god [player]` | Toggle damage blocking; defaults to the chip owner. |
+| `!!bring` | `!!bring <player>` | Bring a player to the chip owner. |
+| `!!tp` | `!!tp <player>` | Teleport the chip owner to a player. |
+| `!!kill` | `!!kill <player>` | Damage the target with the chip owner as attacker. |
+| `!!hkill` | `!!hkill <player>` | Damage the target with a random third player as attacker. |
+| `!!wkill` | `!!wkill <player>` | Damage the target with the world as attacker. |
+| `!!mute` | `!!mute <player>` | Toggle removal of owned entities and the target's current or respawned weapons. With `entities.setHealth`, enabling it and noclip attempts also kill the target. It does not mute voice or chat. |
 
-> **Note:** Only the chip owner can execute commands.
+Names are matched partially and without case sensitivity. Use a longer name if multiple players match.
 
----
+## StarfallEx permissions
 
-## 🔧 Requirements
+Grant the chip `find` for player lookup and for `hkill` and `mute`. The server checks action permissions against the affected entity:
 
-- **Garry's Mod** — [Steam](https://store.steampowered.com/app/4000/)
-- **StarfallEx** — [Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=1135165779)
+- `entities.blockDamage` for enabling god mode.
+- `entities.setPos` for `bring` and `tp`.
+- `entities.applyDamage` for `kill`, `hkill`, and `wkill`.
+- `entities.setHealth` for the fallback kill after damage and for the kill effect of `mute`.
+- `entities.remove` for entities and weapons removed by `mute`.
 
----
+When a command cannot run, the chip prints the missing permission or the reason it rejected the request. Errors while dispatching a command are caught so one bad request does not stop the chip.
 
-## 📦 Installation
+## Installation
 
-### Step 1 — Download the project
+Copy this project folder into `garrysmod/data/starfall/commands/`. Open `starfall/commands/main.lua` in the StarfallEx editor and upload the chip.
 
-**Option A — Git clone**
-```bash
-git clone https://github.com/James159758/commands.git
-```
-
-**Option B — Download ZIP**
-
-1. Click the green **`<> Code`** button at the top of this page
-2. Select **Download ZIP**
-3. Extract the archive somewhere convenient
-
----
-
-### Step 2 — Place files into StarfallEx directory
-
-Copy the entire `commands` folder into your StarfallEx data directory:
-
-```
-GarrysMod/
-└── garrysmod/
-    └── data/
-        └── starfall/
-            └── commands/        ← place it here
-                ├── main.lua
-                ├── CLIENT/
-                │   └── cl_client.lua
-                ├── SERVER/
-                │   └── sv_server.lua
-                └── SHARED/
-```
-
-> **Where is my GarrysMod folder?**  
-> In Steam → right-click **Garry's Mod** → **Manage** → **Browse local files**
-
----
-
-### Step 3 — Create and upload the chip in-game
-
-1. Launch **Garry's Mod** and load into a server or singleplayer
-2. Open the **StarfallEx** tool from the spawnmenu
-3. Place a **Starfall Chip** entity in the world
-4. Open the **SF Editor** (press `E` on the chip or use the tool menu)
-5. In the editor, click **File → Open** and navigate to:
-   ```
-   starfall/commands/main.lua
-   ```
-6. Click **Upload** (or press `Ctrl+U`)
-7. The chip is now active ✅
-
----
-
-## 🚀 Usage
-
-Once the chip is running, type commands directly in the in-game chat:
-
-```
-!!god
-!!bring PlayerName
-!!tp PlayerName
-!!kill PlayerName
-!!hkill PlayerName
-!!wkill PlayerName
-```
-
-Player name matching is **partial and case-insensitive** — `!!bring jim` will find `Jimmy` if he's the only match.
-
----
-
-## 📁 Project Structure
-
-```
+```text
 commands/
-├── main.lua              # Entry point — loads all modules
-├── CLIENT/
-│   └── cl_client.lua     # Chat hook, command registration, net sends
-├── SERVER/
-│   └── sv_server.lua     # Net receiver, action handlers, god mode hook
-└── SHARED/               # Shared utilities (reserved for future use)
+|-- main.lua
+|-- CLIENT/cl_client.lua
+|-- SERVER/sv_server.lua
+`-- SHARED/commands.lua
 ```
 
----
+## Behavior notes
 
-## ⚠️ Troubleshooting
+- `mute` can permanently remove props and other entities owned by its target. It checks removal permission for all current entities and weapons before enabling. Future owned entities are removed when possible; weapons are removed on activation and spawn. StarfallEx restricts the weapon-pickup hook so a chip can only block pickup by its owner; this project does not claim to block pickups by other targets, who may pick up weapons again afterward. There is no per-tick weapon scan.
+- `hkill` needs at least one other online player besides the owner and target. The server selects the attacker.
+- God and mute state last only while this chip instance is running.
 
-**"Player not found"**  
-→ Make sure the name you typed matches at least part of the player's name, and that only one player matches.
+## Architecture
 
-**"Use !!kill to kill someone by your hands" (on !!hkill)**  
-→ There are no other players on the server besides you and the target. `!!hkill` requires a third party.
+`SHARED/commands.lua` is the command registry for usage, target requirements, routing, and permissions. The client parses chat and resolves player names from this registry. The server validates ownership, command name, target, and permissions, then dispatches to action handlers. Attacker selection and permission enforcement stay on the server.
 
-**Commands not responding**  
-→ Confirm the chip is uploaded and you are the chip **owner**. Commands are restricted to the owner only.
+## License
 
----
-
-## 📄 License
-
-MIT — free to use, modify, and distribute.
+MIT.
