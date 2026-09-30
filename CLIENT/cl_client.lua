@@ -1,91 +1,109 @@
 --@client
-local rawPrint = print
-print = function(...)
-    local argsTable = {}
-    local numArgs = select("#", ...)
-    for i = 1, numArgs do
-        local val = select(i, ...)
-        argsTable[i] = tostring(val)
-    end
-    local fullString = table.concat(argsTable, " ")
+local registry = ...
+local commands = registry.commands
 
-    rawPrint("[COMMANDS client] " .. fullString)
+local function trim(value)
+    return (value or ""):match("^%s*(.-)%s*$")
 end
 
-print("initialized")
+local function hasFindPermission()
+    local ok, allowed, reason = pcall(hasPermission, "find")
+    if ok and allowed then return true end
 
-local Client = {}
-Client.commands = {}
+    if ok then
+        print("Access denied: player lookup needs the StarfallEx 'find' permission. " .. tostring(reason or ""))
+    else
+        print("Player lookup permission check failed: " .. tostring(allowed))
+    end
+    return false
+end
 
+local function findTarget(name)
+    name = trim(name)
+    if name == "" then
+        print("A player name is required")
+        return
+    end
+    if not hasFindPermission() then return end
 
-local function sendData(data)
-    net.start("connection")
-    net.writeTable(data)
+    local players = find.playersByName(name, false, false)
+    if #players == 0 then
+        print("Player not found: " .. name)
+        return
+    end
+    if #players > 1 then
+        print("More than one player matches '" .. name .. "'; enter a longer name")
+        return
+    end
+
+    return players[1]
+end
+
+local function sendCommand(name, target)
+    net.start(registry.channel)
+    net.writeTable({ command = name, target = target })
     net.send()
 end
 
-local function parseTarget(input)
-    print(input)
-    local results = find.playersByName(input, true, true)
-    printTable(results)
-    if #results == 0 then print("Player is not found: " .. input) return end
-    if #results > 1 then print("not correct name") return end
-
-    return results[1]
-end
-
-function Client:register(name, options)
-    self.commands[name] = options
-end
-
-function Client:init()
-    self:register("!!god", {execute = function(args)
-        local target = parseTarget(args) 
-        if not target then 
-            target = owner() 
+local function showHelp(argument)
+    argument = trim(argument):lower()
+    if argument ~= "" then
+        local definition = commands[argument]
+        if not definition then
+            print("Unknown command: !!" .. argument)
+            return
         end
-        sendData({flag = "god", target = target}) 
-    end})
-    self:register("!!mute", {execute = function(args)
-        local target = parseTarget(args) if not target then return end
-        sendData({flag = "mute", target = target})
-    end})
-    self:register("!!bring", {execute = function(args)
-        local target = parseTarget(args) if not target then return end
-        sendData({flag = "bring", ply = target})
-    end})
-    self:register("!!tp", {execute = function(args)
-        local target = parseTarget(args) if not target then return end
-        sendData({flag = "tp", ply = target})
-    end})
-    self:register("!!kill", {execute = function(args)
-        local target = parseTarget(args) if not target then return end
-        sendData({flag = "kill", target = target, attacker = owner()})
-    end})
-    self:register("!!hkill", {execute = function(args)
-        local target = parseTarget(args) if not target then return end
-        local attacker = table.random(find.allPlayers(function(ply) return ply ~= owner() and ply ~= target end))
-        if not attacker then print("Use !!kill to kill someone by your hands") return end
-        sendData({flag = "kill", target = target, attacker = attacker})
-    end})
-    self:register("!!wkill", {execute = function(args)
-        local target = parseTarget(args) if not target then return end
-        sendData({flag = "kill", target = target, attacker = game.getWorld()})
-    end})
+        print(definition.usage .. " - " .. definition.description)
+        return
+    end
 
-    hook.add("PlayerChat", "", function(ply, message)
-        if ply ~= owner() then return end
+    local names = {}
+    for name in pairs(commands) do
+        names[#names + 1] = name
+    end
+    table.sort(names)
 
-        local cmdName = message:match("^(!![A-Za-z]+)")
-        if not cmdName then return end
-        local cmd = self.commands[cmdName]
-        if not cmd then return end
-
-        local rest = message:sub(#cmdName + 2)
-        cmd.execute(rest)
-        
-        return false
-    end)
+    print("Available commands (chip owner only):")
+    for _, name in ipairs(names) do
+        local definition = commands[name]
+        print(definition.usage .. " - " .. definition.description)
+    end
+    print("Use !!help <command> for details. Player names use partial, case-insensitive matching.")
 end
 
-Client:init()
+local function runCommand(name, argument)
+    if name == "help" then
+        showHelp(argument)
+        return
+    end
+
+    local definition = commands[name]
+    if not definition then
+        print("Unknown command: !!" .. name .. ". Use !!help to list commands.")
+        return
+    end
+
+    argument = trim(argument)
+    local target
+    if definition.target == "required" or argument ~= "" then
+        target = findTarget(argument)
+        if not target then return end
+    end
+
+    sendCommand(name, target)
+end
+
+hook.add("PlayerChat", "[COMMANDS] chat command parser", function(playerEntity, message)
+    if playerEntity ~= owner() then return end
+
+    local name, argument = message:match("^!!([%a]+)(.*)$")
+    if not name then return end
+    if argument ~= "" and not argument:match("^%s") then return end
+
+    local ok, err = pcall(runCommand, name:lower(), trim(argument))
+    if not ok then
+        print("Command could not be prepared: " .. tostring(err))
+    end
+
+    return false
+end)
